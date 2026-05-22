@@ -1,0 +1,19 @@
+# colcon / ROS 2 workspace artifacts (do not commit)
+build/
+install/
+log/
+
+# Python
+*.pyc
+__pycache__/
+*.egg-info/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Large data (optional; keep map.pcd out of git if huge)
+# *.pcd
+# *.bag
+# *.db3

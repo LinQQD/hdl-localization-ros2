@@ -1,0 +1,5 @@
+std_msgs/Header header
+float64 fitness_score
+float64 matching_time_ms
+float64 covariance_trace
+bool is_converged
