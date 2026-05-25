@@ -70,7 +70,7 @@ public:
     return std::make_shared<OccupancyGridMap>(resolution * 2.0, small_map);
   }
 
-  nav_msgs::msg::OccupancyGrid::ConstSharedPtr to_rosmsg() const {
+  nav_msgs::msg::OccupancyGrid::SharedPtr to_rosmsg() const {
     auto msg = std::make_shared<nav_msgs::msg::OccupancyGrid>();
     msg->header.frame_id = "map";
     msg->header.stamp = rclcpp::Time(0);

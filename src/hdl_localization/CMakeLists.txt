@@ -14,7 +14,7 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(tf2_ros REQUIRED)
-find_package(tf2_geometry_msgs REQUIRED)
+find_package(tf2_sensor_msgs REQUIRED)
 find_package(tf2_eigen REQUIRED)
 find_package(pcl_ros REQUIRED)
 find_package(pcl_conversions REQUIRED)
@@ -51,6 +51,7 @@ ament_target_dependencies(${PROJECT_NAME}_lib
   std_srvs
   tf2_ros
   tf2_geometry_msgs
+  tf2_sensor_msgs
   tf2_eigen
   pcl_ros
   pcl_conversions
@@ -100,6 +101,11 @@ install(TARGETS ${PROJECT_NAME}_lib
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
+)
+
+install(PROGRAMS
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/convert_to_pointcloud2.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 install(DIRECTORY launch rviz data

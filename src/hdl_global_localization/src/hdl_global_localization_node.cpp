@@ -23,8 +23,8 @@ public:
   GlobalLocalizationNode(const rclcpp::NodeOptions& options)
   : Node("hdl_global_localization", options)
   {
-    globalmap_downsample_resolution = declare_parameter<double>("globalmap_downsample_resolution", 0.5);
-    query_downsample_resolution = declare_parameter<double>("query_downsample_resolution", 0.5);
+    globalmap_downsample_resolution = declare_parameter<double>("globalmap_downsample_resolution", 0.1);
+    query_downsample_resolution = declare_parameter<double>("query_downsample_resolution", 0.1);
     engine_name = declare_parameter<std::string>("global_localization_engine", "BBS");
 
     set_engine_srv = create_service<srv::SetGlobalLocalizationEngine>(

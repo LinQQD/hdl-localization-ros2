@@ -29,6 +29,9 @@ def _launch_setup(context, *args, **kwargs):
     invert_imu_acc = LaunchConfiguration('invert_imu_acc')
     invert_imu_gyro = LaunchConfiguration('invert_imu_gyro')
     robot_odom_frame_id = LaunchConfiguration('robot_odom_frame_id')
+    enable_auto_relocalize_monitor = LaunchConfiguration('enable_auto_relocalize_monitor')
+    auto_relocalize_error_threshold = LaunchConfiguration('auto_relocalize_error_threshold')
+    auto_relocalize_cooldown = LaunchConfiguration('auto_relocalize_cooldown')
 
     sim_time_param = ParameterValue(use_sim_time, value_type=bool)
 
@@ -42,7 +45,17 @@ def _launch_setup(context, *args, **kwargs):
     init_ori_x = float(LaunchConfiguration('init_ori_x').perform(context))
     init_ori_y = float(LaunchConfiguration('init_ori_y').perform(context))
     init_ori_z = float(LaunchConfiguration('init_ori_z').perform(context))
+    auto_reloc_monitor = _as_bool(LaunchConfiguration('enable_auto_relocalize_monitor').perform(context))
+    auto_reloc_threshold = float(LaunchConfiguration('auto_relocalize_error_threshold').perform(context))
+    auto_reloc_cooldown = float(LaunchConfiguration('auto_relocalize_cooldown').perform(context))
+    base_to_livox_x = float(LaunchConfiguration('base_to_livox_x').perform(context))
+    base_to_livox_y = float(LaunchConfiguration('base_to_livox_y').perform(context))
+    base_to_livox_z = float(LaunchConfiguration('base_to_livox_z').perform(context))
 
+    base_to_livox_qx = float(LaunchConfiguration('base_to_livox_qx').perform(context))
+    base_to_livox_qy = float(LaunchConfiguration('base_to_livox_qy').perform(context))
+    base_to_livox_qz = float(LaunchConfiguration('base_to_livox_qz').perform(context))
+    base_to_livox_qw = float(LaunchConfiguration('base_to_livox_qw').perform(context))
     return [
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
@@ -61,8 +74,8 @@ def _launch_setup(context, *args, **kwargs):
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',
-            name='lidar_tf',
-            arguments=['0', '0', '0', '0', '0', '0', '1', 'odom', odom_child_frame_id],
+            name='base_to_livox_tf',
+            arguments=[str(base_to_livox_x), str(base_to_livox_y), str(base_to_livox_z), str(base_to_livox_qx), str(base_to_livox_qy), str(base_to_livox_qz), str(base_to_livox_qw), 'base_link', 'livox_frame'],
             parameters=[{'use_sim_time': sim_time_param}],
         ),
         ComposableNodeContainer(
@@ -80,7 +93,7 @@ def _launch_setup(context, *args, **kwargs):
                         'use_sim_time': sim_time_param,
                         'globalmap_pcd': ParameterValue(globalmap_pcd, value_type=str),
                         'convert_utm_to_local': True,
-                        'downsample_resolution': 0.3,
+                        'downsample_resolution': 0.1,
                     }],
                 ),
                 ComposableNode(
@@ -97,15 +110,14 @@ def _launch_setup(context, *args, **kwargs):
                         'use_imu': ParameterValue(use_imu, value_type=bool),
                         'invert_acc': ParameterValue(invert_imu_acc, value_type=bool),
                         'invert_gyro': ParameterValue(invert_imu_gyro, value_type=bool),
-                        'cool_time_duration': 2.0,
+                        'cool_time_duration': 0.2,
                         'enable_robot_odometry_prediction': False,
                         'robot_odom_frame_id': ParameterValue(robot_odom_frame_id, value_type=str),
                         'reg_method': 'NDT_OMP',
                         'ndt_neighbor_search_method': 'DIRECT7',
                         'ndt_neighbor_search_radius': 4.0,
-                        'ndt_resolution': 1.0,
-                        'downsample_resolution': 0.2,
-                        'global_loc_map_downsample_resolution': 0.5,
+                        'ndt_resolution': 0.5,
+                        'downsample_resolution': 0.1,
                         'specify_init_pose': specify_init_pose,
                         'init_pos_x': init_pos_x,
                         'init_pos_y': init_pos_y,
@@ -115,6 +127,9 @@ def _launch_setup(context, *args, **kwargs):
                         'init_ori_y': init_ori_y,
                         'init_ori_z': init_ori_z,
                         'use_global_localization': ParameterValue(use_global_localization, value_type=bool),
+                        'enable_auto_relocalize_monitor': auto_reloc_monitor,
+                        'auto_relocalize_error_threshold': auto_reloc_threshold,
+                        'auto_relocalize_cooldown': auto_reloc_cooldown,
                     }],
                 ),
             ],
@@ -125,7 +140,7 @@ def _launch_setup(context, *args, **kwargs):
 
 def generate_launch_description():
     pkg_loc = get_package_share_directory('hdl_localization')
-    default_map = os.path.join(pkg_loc, 'data', 'map.pcd')
+    default_map = os.path.join(pkg_loc, 'data', 'scans8.pcd')
 
     if not os.path.isfile(default_map):
         raise RuntimeError(
@@ -139,22 +154,29 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument(
-            'use_sim_time', default_value='true',
-            description='Must be true when playing rosbag with --clock'),
+            'use_sim_time', default_value='false',
+            description='Must be true when playing rosbag with --clock. '
+                        'Note: matching Time in logs may show 0 ms with sim time because '
+                        'the clock does not advance within one callback; this is expected.'),
         SetParameter(name='use_sim_time', value=sim_time_param),
 
-        DeclareLaunchArgument('points_topic', default_value='/velodyne_points'),
-        DeclareLaunchArgument('imu_topic', default_value='/gpsimu_driver/imu_data'),
-        DeclareLaunchArgument('odom_child_frame_id', default_value='velodyne'),
+        DeclareLaunchArgument('points_topic', default_value='/livox/pointcloud2'),
+        DeclareLaunchArgument('imu_topic', default_value='/livox/imu'),
+        DeclareLaunchArgument('odom_child_frame_id', default_value='base_link'),
         DeclareLaunchArgument(
             'globalmap_pcd',
             default_value=default_map,
-            description='PCD under <pkg>/share/<pkg>/data/map.pcd',
+            description='PCD under <pkg>/share/<pkg>/data/scans8.pcd',
         ),
         DeclareLaunchArgument('use_global_localization', default_value='true'),
+        DeclareLaunchArgument(
+            'enable_auto_relocalize_monitor', default_value='false',
+            description='If true, call /relocalize when scan matching RMSE exceeds threshold.'),
+        DeclareLaunchArgument('auto_relocalize_error_threshold', default_value='0.1'),
+        DeclareLaunchArgument('auto_relocalize_cooldown', default_value='10.0'),
         DeclareLaunchArgument('use_imu', default_value='true'),
-        DeclareLaunchArgument('invert_imu_acc', default_value='true'),
-        DeclareLaunchArgument('invert_imu_gyro', default_value='true'),
+        DeclareLaunchArgument('invert_imu_acc', default_value='false'),
+        DeclareLaunchArgument('invert_imu_gyro', default_value='false'),
         DeclareLaunchArgument('robot_odom_frame_id', default_value='odom'),
         DeclareLaunchArgument(
             'specify_init_pose', default_value='true',
@@ -170,6 +192,13 @@ def generate_launch_description():
         DeclareLaunchArgument('init_ori_x', default_value='0.0'),
         DeclareLaunchArgument('init_ori_y', default_value='0.0'),
         DeclareLaunchArgument('init_ori_z', default_value='0.0'),
+        DeclareLaunchArgument('base_to_livox_x', default_value='0.0'),
+        DeclareLaunchArgument('base_to_livox_y', default_value='0.0'),
+        DeclareLaunchArgument('base_to_livox_z', default_value='0.0'),
+        DeclareLaunchArgument('base_to_livox_qx', default_value='0.0'),
+        DeclareLaunchArgument('base_to_livox_qy', default_value='-0.258819'),
+        DeclareLaunchArgument('base_to_livox_qz', default_value='0.0'),
+        DeclareLaunchArgument('base_to_livox_qw', default_value='0.965926'),
 
         OpaqueFunction(function=_launch_setup),
     ])

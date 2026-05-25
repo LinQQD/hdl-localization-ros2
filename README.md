@@ -1,6 +1,6 @@
 # hdl_ws_ros2
 
-ROS 2 Humble 移植版 HDL 定位工作空间：基于 NDT_OMP 的实时 3D 定位，支持全局重定位（`/relocalize`）。由 ROS 1 工程 [hdl_ws](../hdl_ws) 迁移而来。
+ROS 2 Humble 移植版 HDL 定位工作空间：基于 NDT_OMP 的实时 3D 定位，支持全局重定位（`/relocalize`）。由 ROS 1 工程 [hdl_ws] 迁移而来。
 
 ## 功能概览
 
@@ -89,6 +89,28 @@ src/hdl_localization/data/map.pcd
 
 以下命令假设工作空间在 `~/hdl_ws_ros2`，按实际路径修改。
 
+### 无人车 / 无人机部署说明
+
+本工程从手持雷达场景迁移到车载/机载场景时，推荐使用以下坐标系约定：
+
+- `map`：全局地图坐标系
+- `odom`：局部连续坐标系（可选；若无外部里程计可暂不提供）
+- `base_link`：机器人主体坐标系
+- `livox_frame`：Livox MID360 坐标系
+
+推荐 TF 链：
+
+- `base_link -> livox_frame`：静态外参，由 launch 中的 `static_transform_publisher` 发布
+- `map -> base_link`：由 `hdl_localization` 动态发布
+- 若系统提供轮速计/飞控 odom，则可进一步形成 `map -> odom -> base_link`
+
+注意：
+
+- `odom_child_frame_id` 应设置为 `base_link`
+- 输入点云 `header.frame_id` 应为 `livox_frame`
+- `base_to_livox_*` 参数表示雷达相对机体的安装外参
+- 对于前倾安装，常规 ROS 机体系下前倾 30° 可先尝试 `base_to_livox_pitch:=-0.523599`
+
 ### 终端 1：Livox 驱动（MID360）
 
 ```bash
@@ -105,19 +127,19 @@ ros2 launch livox_ros_driver2 msg_MID360_launch.py
 ```bash
 source /opt/ros/humble/setup.bash
 source ~/livox_ws/install/setup.bash
+source ~/hdl_ws_ros2/install/setup.bash
 
 cd ~/hdl_ws_ros2
-python3 scripts/convert_pointcloud2.py
-```
-
-默认：`/livox/lidar` → `/lidar/pointcloud2`。可选参数：
-
-```bash
 python3 scripts/convert_pointcloud2.py --ros-args \
   -p input_topic:=/livox/lidar \
-  -p output_topic:=/lidar/pointcloud2 \
+  -p output_topic:=/livox/pointcloud2 \
   -p output_frame_id:=livox_frame
 ```
+
+说明：
+
+- 默认将 `/livox/lidar` 转为 `/livox/pointcloud2`
+- `output_frame_id` 要与静态 TF 的子坐标系一致，这里固定为 `livox_frame`
 
 ### 终端 3：定位 + 全局定位
 
@@ -127,12 +149,22 @@ source ~/hdl_ws_ros2/install/setup.bash
 
 ros2 launch hdl_localization hdl_localization.launch.py \
   use_sim_time:=false \
-  points_topic:=/lidar/pointcloud2 \
+  points_topic:=/livox/pointcloud2 \
   imu_topic:=/livox/imu \
-  odom_child_frame_id:=livox_frame
+  odom_child_frame_id:=base_link \
+  base_to_livox_x:=0.0 \
+  base_to_livox_y:=0.0 \
+  base_to_livox_z:=0.0 \
+  base_to_livox_roll:=0.0 \
+  base_to_livox_pitch:=-0.523599 \
+  base_to_livox_yaw:=0.0
 ```
 
-实时 Livox 时 `use_sim_time:=false`；播 rosbag 时改为 `true` 且 bag 需 `--clock`。
+说明：
+
+- `odom_child_frame_id:=base_link` 表示定位输出的是车体/机体位姿，而不是雷达本体位姿
+- `base_to_livox_*` 表示雷达相对机体的静态安装外参
+- 实时 Livox 时 `use_sim_time:=false`；播 rosbag 时改为 `true` 且 bag 需 `--clock`
 
 期望日志示例：
 
@@ -152,12 +184,17 @@ source ~/hdl_ws_ros2/install/setup.bash
 rviz2 -d $(ros2 pkg prefix hdl_localization)/share/hdl_localization/rviz/hdl_localization_ros2.rviz
 ```
 
+启动后检查：
+
 - Fixed Frame：`map`
+- GlobalMap：Topic 为 `/globalmap`
 - GlobalMap：Durability 选 **Transient Local**
+- PointCloud：查看 `/aligned_points`
+- TF：确认至少能看到 `map`、`base_link`、`livox_frame`
 
-### 终端 5：重定位（可选）
+### 终端 5：执行全局重定位（可选）
 
-在点云与地图已对齐、且已有扫描数据后：
+在点云与地图已大致对齐、且已有扫描数据后：
 
 ```bash
 source /opt/ros/humble/setup.bash
@@ -166,10 +203,16 @@ source ~/hdl_ws_ros2/install/setup.bash
 ros2 service call /relocalize std_srvs/srv/Empty "{}"
 ```
 
-查看结果：
+查看一次重定位结果：
 
 ```bash
 ros2 topic echo /hdl_localization/reloc_status --once
+```
+
+查看当前定位输出：
+
+```bash
+ros2 topic echo /odom --once
 ```
 
 ---
@@ -182,7 +225,7 @@ ros2 launch hdl_localization hdl_localization.launch.py \
   use_sim_time:=true \
   points_topic:=/velodyne_points \
   imu_topic:=/imu \
-  odom_child_frame_id:=velodyne
+  odom_child_frame_id:=base_link
 
 # 终端：RViz（同上）
 

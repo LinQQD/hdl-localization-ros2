@@ -9,9 +9,10 @@
 namespace hdl_global_localization {
 
 GlobalLocalizationBBS::GlobalLocalizationBBS(rclcpp::Node::SharedPtr node) : node(node) {
-  gridmap_pub = this->node->create_publisher<nav_msgs::msg::OccupancyGrid>("gridmap", 1);
-  map_slice_pub = this->node->create_publisher<sensor_msgs::msg::PointCloud2>("map_slice", 1);
-  scan_slice_pub = this->node->create_publisher<sensor_msgs::msg::PointCloud2>("scan_slice", 1);
+  auto latch_qos = rclcpp::QoS(1).transient_local();
+  gridmap_pub = this->node->create_publisher<nav_msgs::msg::OccupancyGrid>("bbs/gridmap", latch_qos);
+  map_slice_pub = this->node->create_publisher<sensor_msgs::msg::PointCloud2>("bbs/map_slice", latch_qos);
+  scan_slice_pub = this->node->create_publisher<sensor_msgs::msg::PointCloud2>("bbs/scan_slice", 1);
 
   params.max_range = this->node->declare_parameter<double>("bbs/max_range", 15.0);
   params.min_tx = this->node->declare_parameter<double>("bbs/min_tx", -10.0);
@@ -20,8 +21,8 @@ GlobalLocalizationBBS::GlobalLocalizationBBS(rclcpp::Node::SharedPtr node) : nod
   params.max_ty = this->node->declare_parameter<double>("bbs/max_ty", 10.0);
   params.min_theta = this->node->declare_parameter<double>("bbs/min_theta", -3.15);
   params.max_theta = this->node->declare_parameter<double>("bbs/max_theta", 3.15);
-  params.map_min_z = this->node->declare_parameter<double>("bbs/map_min_z", 2.0);
-  params.map_max_z = this->node->declare_parameter<double>("bbs/map_max_z", 2.4);
+  params.map_min_z = this->node->declare_parameter<double>("bbs/map_min_z", 0.2);
+  params.map_max_z = this->node->declare_parameter<double>("bbs/map_max_z", 2.0);
   params.map_resolution = this->node->declare_parameter<double>("bbs/map_resolution", 0.5);
   params.scan_min_z = this->node->declare_parameter<double>("bbs/scan_min_z", -0.2);
   params.scan_max_z = this->node->declare_parameter<double>("bbs/scan_max_z", 0.2);
@@ -58,8 +59,12 @@ void GlobalLocalizationBBS::set_global_map(pcl::PointCloud<pcl::PointXYZ>::Const
   map_3d->header.frame_id = "map";
   sensor_msgs::msg::PointCloud2 msg;
   pcl::toROSMsg(*map_3d, msg);
+  msg.header.stamp = node->now();
   map_slice_pub->publish(msg);
-  gridmap_pub->publish(*bbs->gridmap()->to_rosmsg());
+
+  auto grid_msg = bbs->gridmap()->to_rosmsg();
+  grid_msg->header.stamp = node->now();
+  gridmap_pub->publish(*grid_msg);
 }
 
 GlobalLocalizationResults GlobalLocalizationBBS::query(pcl::PointCloud<pcl::PointXYZ>::ConstPtr cloud, int max_num_candidates) {
