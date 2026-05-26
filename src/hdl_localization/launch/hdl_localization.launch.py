@@ -29,10 +29,6 @@ def _launch_setup(context, *args, **kwargs):
     invert_imu_acc = LaunchConfiguration('invert_imu_acc')
     invert_imu_gyro = LaunchConfiguration('invert_imu_gyro')
     robot_odom_frame_id = LaunchConfiguration('robot_odom_frame_id')
-    enable_auto_relocalize_monitor = LaunchConfiguration('enable_auto_relocalize_monitor')
-    auto_relocalize_error_threshold = LaunchConfiguration('auto_relocalize_error_threshold')
-    auto_relocalize_cooldown = LaunchConfiguration('auto_relocalize_cooldown')
-
     sim_time_param = ParameterValue(use_sim_time, value_type=bool)
 
     # Resolve init-pose launch args to plain Python values so ComposableNode receives
@@ -45,13 +41,12 @@ def _launch_setup(context, *args, **kwargs):
     init_ori_x = float(LaunchConfiguration('init_ori_x').perform(context))
     init_ori_y = float(LaunchConfiguration('init_ori_y').perform(context))
     init_ori_z = float(LaunchConfiguration('init_ori_z').perform(context))
-    auto_reloc_monitor = _as_bool(LaunchConfiguration('enable_auto_relocalize_monitor').perform(context))
-    auto_reloc_threshold = float(LaunchConfiguration('auto_relocalize_error_threshold').perform(context))
-    auto_reloc_cooldown = float(LaunchConfiguration('auto_relocalize_cooldown').perform(context))
+    enable_auto_relocalize_monitor = _as_bool(LaunchConfiguration('enable_auto_relocalize_monitor').perform(context))
+    auto_relocalize_error_threshold = float(LaunchConfiguration('auto_relocalize_error_threshold').perform(context))
+    auto_relocalize_cooldown = float(LaunchConfiguration('auto_relocalize_cooldown').perform(context))
     base_to_livox_x = float(LaunchConfiguration('base_to_livox_x').perform(context))
     base_to_livox_y = float(LaunchConfiguration('base_to_livox_y').perform(context))
     base_to_livox_z = float(LaunchConfiguration('base_to_livox_z').perform(context))
-
     base_to_livox_qx = float(LaunchConfiguration('base_to_livox_qx').perform(context))
     base_to_livox_qy = float(LaunchConfiguration('base_to_livox_qy').perform(context))
     base_to_livox_qz = float(LaunchConfiguration('base_to_livox_qz').perform(context))
@@ -67,15 +62,8 @@ def _launch_setup(context, *args, **kwargs):
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',
-            name='map_odom_init_tf',
-            arguments=['0', '0', '0', '0', '0', '0', '1', 'map', 'odom'],
-            parameters=[{'use_sim_time': sim_time_param}],
-        ),
-        Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
             name='base_to_livox_tf',
-            arguments=[str(base_to_livox_x), str(base_to_livox_y), str(base_to_livox_z), str(base_to_livox_qx), str(base_to_livox_qy), str(base_to_livox_qz), str(base_to_livox_qw), 'base_link', 'livox_frame'],
+            arguments=[str(base_to_livox_x), str(base_to_livox_y), str(base_to_livox_z), str(base_to_livox_qx), str(base_to_livox_qy), str(base_to_livox_qz), str(base_to_livox_qw), odom_child_frame_id, 'livox_frame'],
             parameters=[{'use_sim_time': sim_time_param}],
         ),
         ComposableNodeContainer(
@@ -127,9 +115,9 @@ def _launch_setup(context, *args, **kwargs):
                         'init_ori_y': init_ori_y,
                         'init_ori_z': init_ori_z,
                         'use_global_localization': ParameterValue(use_global_localization, value_type=bool),
-                        'enable_auto_relocalize_monitor': auto_reloc_monitor,
-                        'auto_relocalize_error_threshold': auto_reloc_threshold,
-                        'auto_relocalize_cooldown': auto_reloc_cooldown,
+                        'enable_auto_relocalize_monitor': enable_auto_relocalize_monitor,
+                        'auto_relocalize_error_threshold': auto_relocalize_error_threshold,
+                        'auto_relocalize_cooldown': auto_relocalize_cooldown,
                     }],
                 ),
             ],
@@ -172,8 +160,8 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'enable_auto_relocalize_monitor', default_value='false',
             description='If true, call /relocalize when scan matching RMSE exceeds threshold.'),
-        DeclareLaunchArgument('auto_relocalize_error_threshold', default_value='0.1'),
-        DeclareLaunchArgument('auto_relocalize_cooldown', default_value='10.0'),
+        DeclareLaunchArgument('auto_relocalize_error_threshold', default_value='0.2'),
+        DeclareLaunchArgument('auto_relocalize_cooldown', default_value='5.0'),
         DeclareLaunchArgument('use_imu', default_value='true'),
         DeclareLaunchArgument('invert_imu_acc', default_value='false'),
         DeclareLaunchArgument('invert_imu_gyro', default_value='false'),
