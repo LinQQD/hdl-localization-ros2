@@ -18,17 +18,17 @@ def _as_bool(value: str) -> bool:
 def _launch_setup(context, *args, **kwargs):
     pkg_loc = get_package_share_directory('hdl_localization')
     pkg_gloc = get_package_share_directory('hdl_global_localization')
-
     use_sim_time = LaunchConfiguration('use_sim_time')
     points_topic = LaunchConfiguration('points_topic')
     imu_topic = LaunchConfiguration('imu_topic')
+    robot_odom_frame_id = LaunchConfiguration('robot_odom_frame_id')
     odom_child_frame_id = LaunchConfiguration('odom_child_frame_id')
+    send_tf_transforms = LaunchConfiguration('send_tf_transforms')
     globalmap_pcd = LaunchConfiguration('globalmap_pcd')
     use_global_localization = LaunchConfiguration('use_global_localization')
     use_imu = LaunchConfiguration('use_imu')
     invert_imu_acc = LaunchConfiguration('invert_imu_acc')
     invert_imu_gyro = LaunchConfiguration('invert_imu_gyro')
-    robot_odom_frame_id = LaunchConfiguration('robot_odom_frame_id')
     sim_time_param = ParameterValue(use_sim_time, value_type=bool)
 
     # Resolve init-pose launch args to plain Python values so ComposableNode receives
@@ -63,7 +63,17 @@ def _launch_setup(context, *args, **kwargs):
             package='tf2_ros',
             executable='static_transform_publisher',
             name='base_to_livox_tf',
-            arguments=[str(base_to_livox_x), str(base_to_livox_y), str(base_to_livox_z), str(base_to_livox_qx), str(base_to_livox_qy), str(base_to_livox_qz), str(base_to_livox_qw), odom_child_frame_id, 'livox_frame'],
+            arguments=[
+                '--x', str(base_to_livox_x),
+                '--y', str(base_to_livox_y),
+                '--z', str(base_to_livox_z),
+                '--qx', str(base_to_livox_qx),
+                '--qy', str(base_to_livox_qy),
+                '--qz', str(base_to_livox_qz),
+                '--qw', str(base_to_livox_qw),
+                '--frame-id', odom_child_frame_id,
+                '--child-frame-id', 'livox_frame',
+            ],
             parameters=[{'use_sim_time': sim_time_param}],
         ),
         ComposableNodeContainer(
@@ -94,13 +104,14 @@ def _launch_setup(context, *args, **kwargs):
                     ],
                     parameters=[{
                         'use_sim_time': sim_time_param,
-                        'odom_child_frame_id': ParameterValue(odom_child_frame_id, value_type=str),
                         'use_imu': ParameterValue(use_imu, value_type=bool),
                         'invert_acc': ParameterValue(invert_imu_acc, value_type=bool),
                         'invert_gyro': ParameterValue(invert_imu_gyro, value_type=bool),
                         'cool_time_duration': 0.2,
                         'enable_robot_odometry_prediction': False,
-                        'robot_odom_frame_id': ParameterValue(robot_odom_frame_id, value_type=str),
+                        'send_tf_transforms': ParameterValue(send_tf_transforms, value_type=bool),
+                        'odom_child_frame_id': ParameterValue(odom_child_frame_id, value_type=str),
+                        'robot_odom_frame_id': ParameterValue(odom_child_frame_id, value_type=str),
                         'reg_method': 'NDT_OMP',
                         'ndt_neighbor_search_method': 'DIRECT7',
                         'ndt_neighbor_search_radius': 4.0,
@@ -150,7 +161,9 @@ def generate_launch_description():
 
         DeclareLaunchArgument('points_topic', default_value='/livox/pointcloud2'),
         DeclareLaunchArgument('imu_topic', default_value='/livox/imu'),
-        DeclareLaunchArgument('odom_child_frame_id', default_value='base_link'),
+        DeclareLaunchArgument('robot_odom_frame_id', default_value='odom'),
+        DeclareLaunchArgument('odom_child_frame_id', default_value='livox_frame'),
+        DeclareLaunchArgument('send_tf_transforms', default_value='false'),
         DeclareLaunchArgument(
             'globalmap_pcd',
             default_value=default_map,
@@ -165,7 +178,6 @@ def generate_launch_description():
         DeclareLaunchArgument('use_imu', default_value='true'),
         DeclareLaunchArgument('invert_imu_acc', default_value='false'),
         DeclareLaunchArgument('invert_imu_gyro', default_value='false'),
-        DeclareLaunchArgument('robot_odom_frame_id', default_value='odom'),
         DeclareLaunchArgument(
             'specify_init_pose', default_value='true',
             description='If true, use init_pos_* / init_ori_* below. If false, wait for RViz 2D Pose Estimate.',
@@ -180,11 +192,11 @@ def generate_launch_description():
         DeclareLaunchArgument('init_ori_x', default_value='0.0'),
         DeclareLaunchArgument('init_ori_y', default_value='0.0'),
         DeclareLaunchArgument('init_ori_z', default_value='0.0'),
-        DeclareLaunchArgument('base_to_livox_x', default_value='0.0'),
-        DeclareLaunchArgument('base_to_livox_y', default_value='0.0'),
-        DeclareLaunchArgument('base_to_livox_z', default_value='0.0'),
+        DeclareLaunchArgument('base_to_livox_x', default_value='-0.011000'),
+        DeclareLaunchArgument('base_to_livox_y', default_value='-0.023290'),
+        DeclareLaunchArgument('base_to_livox_z', default_value='0.044120'),
         DeclareLaunchArgument('base_to_livox_qx', default_value='0.0'),
-        DeclareLaunchArgument('base_to_livox_qy', default_value='-0.258819'),
+        DeclareLaunchArgument('base_to_livox_qy', default_value='0.258819'),
         DeclareLaunchArgument('base_to_livox_qz', default_value='0.0'),
         DeclareLaunchArgument('base_to_livox_qw', default_value='0.965926'),
 
